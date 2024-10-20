@@ -1,5 +1,6 @@
 from flask import Flask, request, send_file, jsonify
-from flask_cors import CORS
+
+from flask_cors import CORS  # Import CORS
 
 import numpy as np
 from shapely.geometry import Polygon
@@ -13,10 +14,11 @@ import networkx as nx
 import base64
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})  # Enable CORS for all routes
+
 @app.route('/')
 def home():
-    return jsonify({"message": "Welcome to the Math and ASCII Art API"}), 200
+    return jsonify({"message": "Welcome to Floorplan API"}), 200
 
 @app.route('/generate_masks', methods=['POST'])
 def generate_masks():
