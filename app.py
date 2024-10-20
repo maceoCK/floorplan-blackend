@@ -3,8 +3,7 @@ from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS  # Import CORS
 
 import numpy as np
-from shapely.geometry import Polygon
-from shapely.ops import unary_union
+from shapely.geometry import Polygon, Point
 import io
 import matplotlib.pyplot as plt
 import matplotlib
@@ -47,28 +46,70 @@ def generate_masks():
     return jsonify(response), 200
 
 def create_masks(rooms, connectivity, boundary):
-    # Number of corners and rooms
+    # normalize boundary coords
+
+    # Number of rooms and corners
     num_rooms = len(rooms)
     num_corners = num_rooms * 4  # Assuming each room is a rectangle with 4 corners
 
-    # Boundary Mask
+    # Initialize masks
     boundary_mask = np.ones((num_corners, num_corners))
-    # Implement logic to set boundary_mask based on boundary data
-    # ...
-
-    # Self Mask
     self_mask = np.ones((num_corners, num_corners))
-    for i in range(num_rooms):
-        # Indices of corners belonging to the same room
-        corner_indices = [i*4 + j for j in range(4)]
+    gen_mask = np.zeros((num_corners, num_corners))
+
+    # Create floorplan boundary polygon
+
+    # List to store all room corners
+    room_corners = []
+
+    for idx, room in enumerate(rooms):
+        # Assume each room is represented by its center (x, y)
+        # Generate the 4 corners of the rectangle
+        room_x = room['x']
+        room_y = room['y']
+        room_size = float(room['size'])  # Assuming size represents the dimension
+
+        # For simplicity, assume rooms are square with size*size dimensions
+        half_size = room_size / 2
+
+        # Define the 4 corners of the room
+        corners = [
+            (room_x - half_size, room_y - half_size),  # Top-left
+            (room_x + half_size, room_y - half_size),  # Top-right
+            (room_x + half_size, room_y + half_size),  # Bottom-right
+            (room_x - half_size, room_y + half_size),  # Bottom-left
+        ]
+
+        room_corners.extend(corners)
+
+        # For Self Mask - zero out positions belonging to the same room
+        corner_indices = [idx*4 + j for j in range(4)]
         for idx1 in corner_indices:
             for idx2 in corner_indices:
-                self_mask[idx1, idx2] = 0  # Zero out positions belonging to the same room
+                self_mask[idx1, idx2] = 0
 
-    # Gen Mask
-    gen_mask = np.zeros((num_corners, num_corners))
-    # Implement logic to set gen_mask based on padding if necessary
-    # ...
+        
+
+    # Implement gen_mask
+    # Combine boundary_mask and self_mask
+    gen_mask = np.maximum(boundary_mask, self_mask)
+
+    # Optionally, implement additional constraints based on connectivity
+    # For example, setting constraints between connected rooms
+    for connection in connectivity:
+        source_idx = connection['source']['index']
+        target_idx = connection['target']['index']
+
+        # Indices of corners for source and target rooms
+        source_corner_indices = [source_idx*4 + j for j in range(4)]
+        target_corner_indices = [target_idx*4 + j for j in range(4)]
+
+        # Set mask entries to enforce connectivity constraints
+        for s_idx in source_corner_indices:
+            for t_idx in target_corner_indices:
+                # Adjust gen_mask as needed to enforce connectivity
+                gen_mask[s_idx, t_idx] = 1
+                gen_mask[t_idx, s_idx] = 1
 
     return boundary_mask, self_mask, gen_mask
 
